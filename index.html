@@ -8,14 +8,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
 </head>
 <body>
-    <h1>🙂 Déposez vos photos ici 🙂</h1>
+    <h1>😀 Déposez vos photos ici 😀</h1>
     <div class="dropzone" id="dropzone">🧙‍♂️ Déposez vos fichiers ou dossiers ici 🧙‍♂️</div>
     <ul id="fileList"></ul>
 
-    <div>
-        🌟 Il est possible de sélectionner et déposer plusieurs fichiers ou dossier en même temps. 🌟
-    </div>
-    <div id="totalFileSize">Taille totale des fichiers déposés : <span id="totalSize"></span> Mo</div> -->
+    <div>🌟 Il est possible de sélectionner et déposer plusieurs fichiers ou dossier en même temps. 🌟</div>
+    <div id="totalFileSize">Taille totale des fichiers déposés : <span id="totalSize"></span> Mo</div>
 
     <form id="uploadForm" class="hidden">
         <input type="file" name="files[]" id="fileInput" multiple>
@@ -35,6 +33,8 @@
 
     <div id="progressBarContainer">
         <div id="progressBar"></div>
+        <p id="progressPercentage">0%</p>
+        <p>Temps restant : <span id="timeRemaining"></span></p>
     </div>
 
     <div id="loadingSpinner">
@@ -45,7 +45,7 @@
     <script>
         const dropzone = document.getElementById('dropzone');
         const fileList = document.getElementById('fileList');
-        const zipSizeElement = document.getElementById('zipSize');
+        const totalSizeElement = document.getElementById('totalSize');
         const fileInput = document.getElementById('fileInput');
         const passwordPopup = document.getElementById('passwordPopup');
         const confirmationPopup = document.getElementById('confirmationPopup');
@@ -54,6 +54,8 @@
         const uploadForm = document.getElementById('uploadForm');
         const progressBarContainer = document.getElementById('progressBarContainer');
         const progressBar = document.getElementById('progressBar');
+        const progressPercentage = document.getElementById('progressPercentage');
+        const timeRemaining = document.getElementById('timeRemaining');
         const loadingSpinner = document.getElementById('loadingSpinner');
         let droppedItems = null;
         const MAX_CHUNK_SIZE = 20 * 1024 * 1024; // 20 MB
@@ -79,14 +81,17 @@
 
         function displayFileList(items) {
             fileList.innerHTML = '';
+            let totalFileSize = 0;
             for (let i = 0; i < items.length; i++) {
                 let file = items[i].getAsFile();
                 if (file) {
                     let listItem = document.createElement('li');
                     listItem.textContent = `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} Mo)`;
                     fileList.appendChild(listItem);
+                    totalFileSize += file.size;
                 }
             }
+            totalSizeElement.textContent = (totalFileSize / (1024 * 1024)).toFixed(2);
         }
 
         function showPasswordPopup() {
@@ -147,9 +152,6 @@
                 let dataTransfer = new DataTransfer();
                 dataTransfer.items.add(zipFile);
                 fileInput.files = dataTransfer.files;
-
-                // Display the size of the ZIP file
-                zipSizeElement.textContent = (zipBlob.size / (1024 * 1024)).toFixed(2);
 
                 loadingSpinner.style.display = 'none';
                 uploadFiles();

@@ -4,301 +4,239 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Uploader des photos</title>
-    <style>
-        .dropzone {
-            border: 2px dashed #0087F7;
-            border-radius: 5px;
-            background: white;
-            padding: 50px;
-            text-align: center;
-            font: 20px Arial, sans-serif;
-            color: #0087F7;
-            margin-bottom: 20px;
-            transition: background 0.3s;
-        }
-        .dropzone.dragover {
-            background: #e0e7ff;
-        }
-        .hidden {
-            display: none;
-        }
-        #passwordPopup, #confirmationPopup {
-            display: none;
-            position: fixed;
-            left: 50%;
-            top: 50%;
-            transform: translate(-50%, -50%);
-            background-color: white;
-            padding: 20px;
-            border: 2px solid #0087F7;
-            border-radius: 5px;
-            box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.1);
-        }
-        #progressBarContainer {
-            width: 100%;
-            background-color: #f3f3f3;
-            border-radius: 5px;
-            margin-top: 20px;
-            display: none;
-        }
-        #progressBar {
-            width: 0;
-            height: 20px;
-            background-color: #4caf50;
-            border-radius: 5px;
-        }
-        #loadingSpinner {
-            display: none;
-            position: fixed;
-            left: 50%;
-            top: 50%;
-            transform: translate(-50%, -50%);
-        }
-        #fileSizeInfo {
-            margin-top: 20px;
-            font-size: 14px;
-            color: #666;
-        }
-        #fileList {
-            margin-top: 20px;
-            font-size: 14px;
-            color: #333;
-        }
-        #fileList li {
-            margin-bottom: 5px;
-        }
-        #totalFileSize, #zipFileSize {
-            margin-top: 10px;
-            font-size: 14px;
-            color: #333;
-        }
-    </style>
+    <link rel="stylesheet" href="styles.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
 </head>
 <body>
+    <h1>🙂 Déposez vos photos ici 🙂</h1>
+    <div class="dropzone" id="dropzone">🧙‍♂️ Déposez vos fichiers ou dossiers ici 🧙‍♂️</div>
+    <ul id="fileList"></ul>
 
-<h1>😊 Déposez vos photos ici 😊</h1>
-<div class="dropzone" id="dropzone">🧙‍♂️ Déposez vos fichiers ou dossiers ici 🧙‍♂️</div>
-<ul id="fileList"></ul>
-<div id="fileSizeInfo">
-    ⚠️ 🕵️‍♂️ Taille maximale des fichiers ou dossiers : <span id="maxFileSize"></span> Mo. 🕵️‍♀️ ⚠️
-    Il est possible de sélectionner et déposer plusieurs fichiers ou dossier en même temps.
-</div>
+    <div>
+        🌟 Il est possible de sélectionner et déposer plusieurs fichiers ou dossier en même temps. 🌟
+    </div>
+    <div id="totalFileSize">Taille totale des fichiers déposés : <span id="totalSize"></span> Mo</div> -->
 
-<div id="totalFileSize">Taille totale des fichiers déposés : <span id="totalSize"></span> Mo</div>
-<div id="zipFileSize">Taille du fichier ZIP : <span id="zipSize"></span> Mo</div>
+    <form id="uploadForm" class="hidden">
+        <input type="file" name="files[]" id="fileInput" multiple>
+        <input type="password" id="hiddenPassword" name="password">
+    </form>
 
-<form id="uploadForm" class="hidden">
-    <input type="file" name="files[]" id="fileInput" multiple>
-    <input type="password" id="hiddenPassword" name="password">
-</form>
+    <div id="passwordPopup">
+        <label for="popupPassword">Mot de passe :</label>
+        <input type="password" id="popupPassword" name="popupPassword" required>
+        <button onclick="submitForm()">Valider</button>
+    </div>
 
-<div id="passwordPopup">
-    <label for="popupPassword">Mot de passe :</label>
-    <input type="password" id="popupPassword" name="popupPassword" required>
-    <button onclick="submitForm()">Valider</button>
-</div>
+    <div id="confirmationPopup">
+        <p>Fichiers téléchargés avec succès !</p>
+        <button onclick="closeConfirmationPopup()">OK</button>
+    </div>
 
-<div id="confirmationPopup">
-    <p>Fichiers téléchargés avec succès !</p>
-    <button onclick="closeConfirmationPopup()">OK</button>
-</div>
+    <div id="progressBarContainer">
+        <div id="progressBar"></div>
+    </div>
 
-<div id="progressBarContainer">
-    <div id="progressBar"></div>
-</div>
+    <div id="loadingSpinner">
+        <p>Compression en cours, veuillez patienter...</p>
+        <img src="https://i.gifer.com/YCZH.gif" alt="Loading...">
+    </div>
 
-<div id="loadingSpinner">
-    <p>Compression en cours, veuillez patienter...</p>
-    <img src="https://i.gifer.com/YCZH.gif" alt="Loading...">
-</div>
+    <script>
+        const dropzone = document.getElementById('dropzone');
+        const fileList = document.getElementById('fileList');
+        const zipSizeElement = document.getElementById('zipSize');
+        const fileInput = document.getElementById('fileInput');
+        const passwordPopup = document.getElementById('passwordPopup');
+        const confirmationPopup = document.getElementById('confirmationPopup');
+        const popupPassword = document.getElementById('popupPassword');
+        const hiddenPassword = document.getElementById('hiddenPassword');
+        const uploadForm = document.getElementById('uploadForm');
+        const progressBarContainer = document.getElementById('progressBarContainer');
+        const progressBar = document.getElementById('progressBar');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        let droppedItems = null;
+        const MAX_CHUNK_SIZE = 20 * 1024 * 1024; // 20 MB
 
-<script>
-const dropzone = document.getElementById('dropzone');
-const fileList = document.getElementById('fileList');
-const totalSizeElement = document.getElementById('totalSize');
-const zipSizeElement = document.getElementById('zipSize');
-const fileInput = document.getElementById('fileInput');
-const passwordPopup = document.getElementById('passwordPopup');
-const confirmationPopup = document.getElementById('confirmationPopup');
-const popupPassword = document.getElementById('popupPassword');
-const hiddenPassword = document.getElementById('hiddenPassword');
-const uploadForm = document.getElementById('uploadForm');
-const progressBarContainer = document.getElementById('progressBarContainer');
-const progressBar = document.getElementById('progressBar');
-const loadingSpinner = document.getElementById('loadingSpinner');
-const maxFileSizeElement = document.getElementById('maxFileSize');
-let droppedItems = null;
-let totalFileSize = 0;
+        dropzone.addEventListener('click', () => fileInput.click());
 
-// Fetch the max file size from the server
-fetch('config.php')
-    .then(response => response.json())
-    .then(data => {
-        maxFileSizeElement.textContent = data.maxFileSizeMB;
-    });
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
 
-dropzone.addEventListener('click', () => fileInput.click());
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
 
-dropzone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropzone.classList.add('dragover');
-});
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            droppedItems = e.dataTransfer.items;
+            showPasswordPopup();
+            displayFileList(droppedItems);
+        });
 
-dropzone.addEventListener('dragleave', () => {
-    dropzone.classList.remove('dragover');
-});
-
-dropzone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropzone.classList.remove('dragover');
-    droppedItems = e.dataTransfer.items;
-    showPasswordPopup();
-    displayFileList(droppedItems);
-});
-
-function displayFileList(items) {
-    fileList.innerHTML = '';
-    totalFileSize = 0;
-    for (let i = 0; i < items.length; i++) {
-        let file = items[i].getAsFile();
-        if (file) {
-            let listItem = document.createElement('li');
-            listItem.textContent = `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} Mo)`;
-            fileList.appendChild(listItem);
-            totalFileSize += file.size;
-        }
-    }
-    totalSizeElement.textContent = (totalFileSize / (1024 * 1024)).toFixed(2);
-}
-
-function showPasswordPopup() {
-    passwordPopup.style.display = 'block';
-}
-
-function submitForm() {
-    const password = popupPassword.value;
-    if (password) {
-        hiddenPassword.value = password;
-        passwordPopup.style.display = 'none';
-
-        if (droppedItems) {
-            processFiles(droppedItems);
-        }
-    } else {
-        alert('Veuillez entrer le mot de passe.');
-    }
-}
-
-async function processFiles(items) {
-    loadingSpinner.style.display = 'block';
-
-    let zip = new JSZip();
-    let folderName = '';
-
-    for (let i = 0; i < items.length; i++) {
-        let entry = items[i].webkitGetAsEntry();
-        if (entry.isDirectory) {
-            folderName = entry.name;
-            await addDirectoryToZip(entry, zip);
-        } else {
-            let file = items[i].getAsFile();
-            folderName = file.name.split('.')[0]; // Use the file name without extension if it's not a directory
-            zip.file(file.name, file);
-        }
-    }
-
-    const timestamp = new Date().toISOString().replace(/[-:.]/g, '');
-    const zipFileName = `${folderName}_${timestamp}.zip`;
-
-    zip.generateAsync({ type: 'blob' }).then((content) => {
-        let zipBlob = new Blob([content], { type: 'application/zip' });
-        let zipFile = new File([zipBlob], zipFileName, { type: 'application/zip' });
-
-        let dataTransfer = new DataTransfer();
-        dataTransfer.items.add(zipFile);
-        fileInput.files = dataTransfer.files;
-
-        // Display the size of the ZIP file
-        zipSizeElement.textContent = (zipBlob.size / (1024 * 1024)).toFixed(2);
-
-        loadingSpinner.style.display = 'none';
-        uploadFiles();
-    });
-}
-
-function uploadFiles() {
-    const formData = new FormData(uploadForm);
-    progressBarContainer.style.display = 'block';
-
-    fetch('upload.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.text())
-    .then(result => {
-        progressBarContainer.style.display = 'none';
-        if (result.includes("succès")) {
-            showConfirmationPopup();
-        } else {
-            alert(result);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        progressBarContainer.style.display = 'none';
-    });
-}
-
-function updateProgress(event) {
-    if (event.lengthComputable) {
-        const percentComplete = (event.loaded / event.total) * 100;
-        progressBar.style.width = percentComplete + '%';
-    }
-}
-
-function showConfirmationPopup() {
-    confirmationPopup.style.display = 'block';
-}
-
-function closeConfirmationPopup() {
-    confirmationPopup.style.display = 'none';
-}
-
-async function addDirectoryToZip(entry, zipFolder) {
-    let reader = entry.createReader();
-    let entries = await readAllEntries(reader);
-
-    for (let entry of entries) {
-        if (entry.isDirectory) {
-            await addDirectoryToZip(entry, zipFolder.folder(entry.name));
-        } else {
-            let file = await getFile(entry);
-            zipFolder.file(entry.name, file);
-        }
-    }
-}
-
-function readAllEntries(reader) {
-    return new Promise((resolve, reject) => {
-        reader.readEntries((entries) => {
-            if (entries.length === 0) {
-                resolve([]);
-            } else {
-                resolve(entries);
+        function displayFileList(items) {
+            fileList.innerHTML = '';
+            for (let i = 0; i < items.length; i++) {
+                let file = items[i].getAsFile();
+                if (file) {
+                    let listItem = document.createElement('li');
+                    listItem.textContent = `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} Mo)`;
+                    fileList.appendChild(listItem);
+                }
             }
-        });
-    });
-}
+        }
 
-function getFile(entry) {
-    return new Promise((resolve, reject) => {
-        entry.file((file) => {
-            resolve(file);
-        });
-    });
-}
-</script>
+        function showPasswordPopup() {
+            passwordPopup.style.display = 'block';
+        }
+
+        function submitForm() {
+            const password = popupPassword.value;
+            if (password) {
+                hiddenPassword.value = password;
+                passwordPopup.style.display = 'none';
+
+                if (droppedItems) {
+                    processFiles(droppedItems);
+                }
+            } else {
+                alert('Veuillez entrer le mot de passe.');
+            }
+        }
+
+        async function processFiles(items) {
+            loadingSpinner.style.display = 'block';
+
+            let zip = new JSZip();
+            let folderName = '';
+
+            for (let i = 0; i < items.length; i++) {
+                let entry = items[i].webkitGetAsEntry();
+                if (entry.isDirectory) {
+                    folderName = entry.name;
+                    await addDirectoryToZip(entry, zip);
+                } else {
+                    let file = items[i].getAsFile();
+                    folderName = file.name.split('.')[0]; // Use the file name without extension if it's not a directory
+                    zip.file(file.name, file);
+                }
+            }
+
+            const timestamp = new Date().toISOString().replace(/[-:.]/g, '');
+            const zipFileName = `${folderName}_${timestamp}.zip`;
+
+            let startTime = Date.now();
+            zip.generateAsync({ type: 'blob' }, (metadata) => {
+                // Update progress bar and estimated time
+                let progress = Math.round(metadata.percent);
+                progressBar.style.width = progress + '%';
+                progressPercentage.textContent = progress + '%';
+
+                let elapsedTime = (Date.now() - startTime) / 1000; // in seconds
+                let estimatedTotalTime = (elapsedTime / metadata.percent) * 100; // in seconds
+                let timeLeft = estimatedTotalTime - elapsedTime;
+
+                timeRemaining.textContent = formatTime(timeLeft);
+            }).then((content) => {
+                let zipBlob = new Blob([content], { type: 'application/zip' });
+                let zipFile = new File([zipBlob], zipFileName, { type: 'application/zip' });
+
+                let dataTransfer = new DataTransfer();
+                dataTransfer.items.add(zipFile);
+                fileInput.files = dataTransfer.files;
+
+                // Display the size of the ZIP file
+                zipSizeElement.textContent = (zipBlob.size / (1024 * 1024)).toFixed(2);
+
+                loadingSpinner.style.display = 'none';
+                uploadFiles();
+            });
+        }
+
+        function formatTime(seconds) {
+            let minutes = Math.floor(seconds / 60);
+            seconds = Math.floor(seconds % 60);
+            return `${minutes}m ${seconds}s`;
+        }
+
+        async function uploadFiles() {
+            const files = fileInput.files;
+            for (let file of files) {
+                await uploadFileInChunks(file);
+            }
+            showConfirmationPopup();
+        }
+
+        async function uploadFileInChunks(file) {
+            const totalChunks = Math.ceil(file.size / MAX_CHUNK_SIZE);
+            for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+                const start = chunkIndex * MAX_CHUNK_SIZE;
+                const end = Math.min(start + MAX_CHUNK_SIZE, file.size);
+                const chunk = file.slice(start, end);
+
+                const formData = new FormData();
+                formData.append('chunk', chunk);
+                formData.append('chunkIndex', chunkIndex);
+                formData.append('totalChunks', totalChunks);
+                formData.append('fileName', file.name);
+                formData.append('password', hiddenPassword.value);
+
+                progressBarContainer.style.display = 'block';
+                progressBar.style.width = `${((chunkIndex + 1) / totalChunks) * 100}%`;
+
+                await fetch('upload.php', {
+                    method: 'POST',
+                    body: formData
+                });
+            }
+            progressBarContainer.style.display = 'none';
+        }
+
+        function showConfirmationPopup() {
+            confirmationPopup.style.display = 'block';
+        }
+
+        function closeConfirmationPopup() {
+            confirmationPopup.style.display = 'none';
+        }
+
+        async function addDirectoryToZip(entry, zipFolder) {
+            let reader = entry.createReader();
+            let entries = await readAllEntries(reader);
+
+            for (let entry of entries) {
+                if (entry.isDirectory) {
+                    await addDirectoryToZip(entry, zipFolder.folder(entry.name));
+                } else {
+                    let file = await getFile(entry);
+                    zipFolder.file(entry.name, file);
+                }
+            }
+        }
+
+        function readAllEntries(reader) {
+            return new Promise((resolve, reject) => {
+                reader.readEntries((entries) => {
+                    if (entries.length === 0) {
+                        resolve([]);
+                    } else {
+                        resolve(entries);
+                    }
+                });
+            });
+        }
+
+        function getFile(entry) {
+            return new Promise((resolve, reject) => {
+                entry.file((file) => {
+                    resolve(file);
+                });
+            });
+        }
+    </script>
 
 </body>
 </html>

@@ -34,41 +34,84 @@ $maxFileSize = min($maxUpload, $maxPost, $memoryLimit);
 $valid_password = 'Mary-Noelle48';
 
 // Vérifie si un fichier a été téléchargé
-if (empty($_FILES['files']['tmp_name'][0])) {
+if (empty($_FILES['chunk']['tmp_name'])) {
+    error_log("Aucun fichier téléchargé. Vérifiez que la taille des fichiers ne dépasse pas la limite autorisée.");
     die("Aucun fichier téléchargé. Vérifiez que la taille des fichiers ne dépasse pas la limite autorisée.");
 }
 
 // Vérifie le mot de passe
 if (!isset($_POST['password']) || $_POST['password'] !== $valid_password) {
+    error_log("Mot de passe incorrect.");
     die("Mot de passe incorrect.");
 }
 
 // Crée le dossier de téléchargement s'il n'existe pas
 $upload_dir = 'uploads/';
 if (!is_dir($upload_dir)) {
-    mkdir($upload_dir, 0777, true);
+    if (!mkdir($upload_dir, 0777, true)) {
+        error_log("Erreur lors de la création du dossier de téléchargement.");
+        die("Erreur lors de la création du dossier de téléchargement.");
+    }
 }
 
-// Limite de taille pour chaque fichier (en octets)
-$max_file_size = 32 * 1024 * 1024; // 32 Mo
+$fileName = $_POST['fileName'];
+$chunkIndex = (int)$_POST['chunkIndex'];
+$totalChunks = (int)$_POST['totalChunks'];
+$chunkTemp = $_FILES['chunk']['tmp_name'];
 
-foreach ($_FILES['files']['tmp_name'] as $key => $tmp_name) {
-    $file_name = basename($_FILES['files']['name'][$key]);
-    $file_size = $_FILES['files']['size'][$key];
-    $file_tmp = $_FILES['files']['tmp_name'][$key];
-    $file_type = $_FILES['files']['type'][$key];
+// Crée un nom de fichier unique pour chaque morceau
+$chunkFileName = $upload_dir . $fileName . '.part' . $chunkIndex;
 
-    // Vérifie la taille du fichier
-    if ($file_size > $max_file_size) {
-        die("Le fichier $file_name est trop gros.");
+// Déplace le fichier téléchargé dans le dossier de téléchargement
+if (move_uploaded_file($chunkTemp, $chunkFileName)) {
+    error_log("Le morceau $chunkIndex du fichier $fileName a été téléchargé avec succès.");
+
+    // Vérifie si tous les morceaux ont été téléchargés
+    $allChunksUploaded = true;
+    for ($i = 0; $i < $totalChunks; $i++) {
+        if (!file_exists($upload_dir . $fileName . '.part' . $i)) {
+            $allChunksUploaded = false;
+            break;
+        }
     }
 
-    // Déplace le fichier téléchargé dans le dossier de téléchargement
-    $upload_file = $upload_dir . $file_name;
-    if (move_uploaded_file($file_tmp, $upload_file)) {
-        echo "Le fichier $file_name a été téléchargé avec succès.";
+    // Si tous les morceaux ont été téléchargés, les assembler
+    if ($allChunksUploaded) {
+        error_log("Tous les morceaux du fichier $fileName ont été téléchargés. Assemblage en cours...");
+        $finalFile = $upload_dir . $fileName;
+        $fp = fopen($finalFile, 'wb');
+
+        if ($fp === false) {
+            error_log("Erreur lors de l'ouverture du fichier final pour écriture.");
+            die("Erreur lors de l'ouverture du fichier final pour écriture.");
+        }
+
+        for ($i = 0; $i < $totalChunks; $i++) {
+            $partFile = $upload_dir . $fileName . '.part' . $i;
+            $chunk = file_get_contents($partFile);
+
+            if ($chunk === false) {
+                error_log("Erreur lors de la lecture du fichier $partFile.");
+                die("Erreur lors de la lecture du fichier $partFile.");
+            }
+
+            if (fwrite($fp, $chunk) === false) {
+                error_log("Erreur lors de l'écriture du chunk $i dans le fichier final.");
+                die("Erreur lors de l'écriture du chunk $i dans le fichier final.");
+            }
+
+            unlink($partFile); // Supprime le morceau une fois assemblé
+        }
+
+        fclose($fp);
+        error_log("Le fichier $fileName a été assemblé avec succès.");
+        echo "Le fichier $fileName a été assemblé avec succès.";
     } else {
-        echo "Erreur lors du téléchargement du fichier $file_name.";
+        error_log("Tous les morceaux n'ont pas encore été téléchargés.");
+        echo "Tous les morceaux n'ont pas encore été téléchargés.";
     }
+} else {
+    error_log("Erreur lors du téléchargement du morceau $chunkIndex du fichier $fileName.");
+    die("Erreur lors du téléchargement du morceau $chunkIndex du fichier $fileName.");
 }
 ?>
